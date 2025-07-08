@@ -4,8 +4,9 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.types._
 import org.apache.spark.ml.Pipeline
 import org.apache.spark.ml.feature.{StringIndexer, OneHotEncoder, VectorAssembler}
-import org.apache.spark.ml.classification.LogisticRegression
+import org.apache.spark.ml.classification.{LogisticRegression, RandomForestClassifier, GBTClassifier}
 import org.apache.spark.ml.evaluation.BinaryClassificationEvaluator
+import org.apache.spark.ml.evaluation.MulticlassClassificationEvaluator
 
 object Main {
   def main(args: Array[String]): Unit = {
@@ -95,37 +96,120 @@ object Main {
       .setInputCols(assemblerInputs)
       .setOutputCol("features")
 
-    // Stage 5: The classification model
-    val lr = new LogisticRegression().setLabelCol("label").setFeaturesCol("features")
-
-    // --- Train and Evaluate the Model ---
+    // --- Train and Evaluate Multiple Models ---
 
     // Split the data into training and test sets
     val Array(trainingData, testData) = cleanedDf.randomSplit(Array(0.8, 0.2), seed = 1234L)
 
-    // Create the full pipeline
-    val pipeline = new Pipeline().setStages(indexers ++ encoders ++ Array(labelIndexer, assembler, lr))
-
-    // Train the model
-    println("Training the Logistic Regression model...")
-    val model = pipeline.fit(trainingData)
-
-    // Make predictions on the test data
-    println("Making predictions on the test data...")
-    val predictions = model.transform(testData)
-
-    // Show a sample of the predictions
-    println("Sample predictions:")
-    predictions.select("label", "prediction", "probability").show(10, truncate = false)
-
-    // --- Evaluate the Model ---
-    val evaluator = new BinaryClassificationEvaluator()
+    // Create evaluators
+    val binaryEvaluator = new BinaryClassificationEvaluator()
       .setLabelCol("label")
-      .setRawPredictionCol("rawPrediction") // default is rawPrediction
+      .setRawPredictionCol("rawPrediction")
       .setMetricName("areaUnderROC")
+    
+    val multiclassEvaluator = new MulticlassClassificationEvaluator()
+      .setLabelCol("label")
+      .setPredictionCol("prediction")
+      .setMetricName("accuracy")
 
-    val auc = evaluator.evaluate(predictions)
-    println(s"Area Under ROC Curve (AUC) on test data = $auc")
+    println("\n" + "="*60)
+    println("MODEL COMPARISON RESULTS")
+    println("="*60)
+
+    // 1. LOGISTIC REGRESSION (Baseline)
+    println("\n1. LOGISTIC REGRESSION (Baseline)")
+    println("-" * 40)
+    
+    val lr = new LogisticRegression().setLabelCol("label").setFeaturesCol("features")
+    val lrPipeline = new Pipeline().setStages(indexers ++ encoders ++ Array(labelIndexer, assembler, lr))
+    
+    println("Training Logistic Regression model...")
+    val lrModel = lrPipeline.fit(trainingData)
+    val lrPredictions = lrModel.transform(testData)
+    
+    val lrAuc = binaryEvaluator.evaluate(lrPredictions)
+    val lrAccuracy = multiclassEvaluator.evaluate(lrPredictions)
+    
+    println(f"AUC: $lrAuc%.4f")
+    println(f"Accuracy: $lrAccuracy%.4f")
+
+    // 2. RANDOM FOREST
+    println("\n2. RANDOM FOREST")
+    println("-" * 40)
+    
+    val rf = new RandomForestClassifier()
+      .setLabelCol("label")
+      .setFeaturesCol("features")
+      .setNumTrees(100)
+      .setMaxDepth(5)
+      .setSeed(1234L)
+    
+    val rfPipeline = new Pipeline().setStages(indexers ++ encoders ++ Array(labelIndexer, assembler, rf))
+    
+    println("Training Random Forest model...")
+    val rfModel = rfPipeline.fit(trainingData)
+    val rfPredictions = rfModel.transform(testData)
+    
+    val rfAuc = binaryEvaluator.evaluate(rfPredictions)
+    val rfAccuracy = multiclassEvaluator.evaluate(rfPredictions)
+    
+    println(f"AUC: $rfAuc%.4f")
+    println(f"Accuracy: $rfAccuracy%.4f")
+
+    // 3. GRADIENT BOOSTED TREES
+    println("\n3. GRADIENT BOOSTED TREES")
+    println("-" * 40)
+    
+    val gbt = new GBTClassifier()
+      .setLabelCol("label")
+      .setFeaturesCol("features")
+      .setMaxIter(20)
+      .setMaxDepth(5)
+      .setSeed(1234L)
+    
+    val gbtPipeline = new Pipeline().setStages(indexers ++ encoders ++ Array(labelIndexer, assembler, gbt))
+    
+    println("Training Gradient Boosted Trees model...")
+    val gbtModel = gbtPipeline.fit(trainingData)
+    val gbtPredictions = gbtModel.transform(testData)
+    
+    val gbtAuc = binaryEvaluator.evaluate(gbtPredictions)
+    val gbtAccuracy = multiclassEvaluator.evaluate(gbtPredictions)
+    
+    println(f"AUC: $gbtAuc%.4f")
+    println(f"Accuracy: $gbtAccuracy%.4f")
+
+    // --- RESULTS SUMMARY ---
+    println("\n" + "="*60)
+    println("FINAL COMPARISON SUMMARY")
+    println("="*60)
+    
+    val results = Array(
+      ("Logistic Regression", lrAuc, lrAccuracy),
+      ("Random Forest", rfAuc, rfAccuracy),
+      ("Gradient Boosted Trees", gbtAuc, gbtAccuracy)
+    )
+    
+    println(f"${"Model"}%-20s | ${"AUC"}%-8s | ${"Accuracy"}%-8s")
+    println("-" * 42)
+    results.foreach { case (name, auc, acc) =>
+      println(f"$name%-20s | ${auc}%.4f   | ${acc}%.4f")
+    }
+    
+    // Find best model
+    val bestByAuc = results.maxBy(_._2)
+    val bestByAccuracy = results.maxBy(_._3)
+    
+    println(f"\nBest AUC: ${bestByAuc._1} (${bestByAuc._2}%.4f)")
+    println(f"Best Accuracy: ${bestByAccuracy._1} (${bestByAccuracy._3}%.4f)")
+
+    // Show sample predictions from best AUC model
+    println(f"\nSample predictions from best model (${bestByAuc._1}):")
+    val bestPredictions = if (bestByAuc._1 == "Logistic Regression") lrPredictions
+                         else if (bestByAuc._1 == "Random Forest") rfPredictions
+                         else gbtPredictions
+    
+    bestPredictions.select("label", "prediction", "probability").show(10, truncate = false)
 
     spark.stop()
   }

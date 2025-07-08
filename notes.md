@@ -15,102 +15,62 @@ Academic Scala ML project for EPSI Grenoble (2025) using Spark MLlib to predict 
 - ✅ Implemented explicit schema definition for all 35 CSV columns
 - ✅ Added data cleaning: dropped `EmployeeCount`, `StandardHours`, `Over18`, `EmployeeNumber`
 - ✅ Built preprocessing pipeline:
-  - StringIndexer for categorical features (7 columns)
-  - OneHotEncoder for indexed categorical features  
+  - StringIndexer for categorical features → OneHotEncoder
   - VectorAssembler for feature combination
-  - StringIndexer for target label (Attrition → 0/1)
+  - Label indexing for target variable
 
-## Phase 3: Model Training ✅
-- ✅ Implemented LogisticRegression classifier
-- ✅ Used 80/20 train/test split (seed=1234L)
-- ✅ Created full ML Pipeline with all preprocessing stages
-- ✅ Added BinaryClassificationEvaluator for AUC metric
+## Phase 3: Model Training & Java 17 Compatibility ✅
+- ✅ Initial LogisticRegression implementation
+- ✅ **MAJOR CHALLENGE**: Java 17 + Spark 3.3.0 serialization compatibility
+- ✅ **SOLUTION**: Comprehensive `--add-opens` flags in `build.sbt`
+  - Critical: `--add-opens=java.base/java.lang.invoke=ALL-UNNAMED`
+  - Plus 11 additional module access permissions
+- ✅ Switched from Kryo to JavaSerializer
+- ✅ **SUCCESS**: First successful run with AUC 0.833 (83.3%)
 
-## Major Challenge: Java 17 + Spark 3.3.0 Compatibility ✅
-**Issue**: Multiple serialization errors with Kryo and Java module access restrictions
+## Phase 4: Model Comparison & Performance Analysis ✅
 
-**Attempted Solutions**:
-1. ❌ Initial `JavaSerializer` config alone insufficient
-2. ❌ Basic `--add-opens` flags insufficient  
-3. ❌ Disabling adaptive query execution insufficient
-4. ❌ Attempted Kryo registrator (wrong approach)
+### **Algorithm Implementation**
+- ✅ **LogisticRegression** (baseline)
+- ✅ **RandomForestClassifier** (100 trees, maxDepth=5)
+- ✅ **GBTClassifier** (20 iterations, maxDepth=5)
 
-**Final Solution** ✅:
-Added comprehensive Java module opens in `build.sbt`:
-```scala
-javaOptions ++= Seq(
-  "--add-opens=java.base/java.lang=ALL-UNNAMED",
-  "--add-opens=java.base/java.nio=ALL-UNNAMED",
-  "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED", 
-  "--add-opens=java.base/java.util=ALL-UNNAMED",
-  "--add-opens=java.base/java.lang.reflect=ALL-UNNAMED",
-  "--add-opens=java.base/java.lang.invoke=ALL-UNNAMED",  // Critical!
-  "--add-opens=java.base/java.util.concurrent=ALL-UNNAMED",
-  "--add-opens=java.base/java.io=ALL-UNNAMED",
-  "--add-opens=java.base/sun.util.calendar=ALL-UNNAMED",
-  "--add-opens=java.base/java.net=ALL-UNNAMED",
-  "--add-opens=java.base/java.text=ALL-UNNAMED",
-  "--add-opens=java.base/java.time=ALL-UNNAMED"
-)
-fork in run := true
-```
+### **Final Performance Results**
+| Model | AUC | Accuracy |
+|-------|-----|----------|
+| **Logistic Regression** | **0.8332** | **0.8733** |
+| Random Forest | 0.8078 | 0.8630 |
+| Gradient Boosted Trees | 0.7299 | 0.8493 |
 
-**Key Discovery**: The `java.lang.invoke` module was essential for SerializedLambda access.
+### **Key Findings**
+- 🏆 **Best Overall Performance**: Logistic Regression
+  - **AUC**: 83.32% (excellent discrimination)
+  - **Accuracy**: 87.33% (strong classification)
+- 📊 **Random Forest**: Close second with 80.78% AUC, 86.30% accuracy
+- 📉 **GBT**: Lower performance at 72.99% AUC, 84.93% accuracy
 
-## **SUCCESSFUL EXECUTION RESULTS** ✅
+### **Technical Success Metrics**
+- ✅ **Full Java 17 compatibility** achieved
+- ✅ **Complete ML Pipeline** with data preprocessing
+- ✅ **Model comparison framework** implemented
+- ✅ **Comprehensive evaluation** (AUC + Accuracy)
+- ✅ **Sample predictions** displayed for best model
 
-### **Date**: January 8, 2025, 15:35:53
-### **Status**: COMPLETE SUCCESS ✅
+## Phase 5: Future Enhancements (Planned)
+- 🔄 **Hyperparameter Tuning**: Grid search for optimal parameters
+- 🔄 **Feature Engineering**: Advanced feature combinations
+- 🔄 **Cross-Validation**: More robust performance evaluation
+- 🔄 **Model Interpretation**: Feature importance analysis
 
-**Final AUC Score: 0.833 (83.3%)**
-- Excellent baseline performance for LogisticRegression
-- AUC > 0.8 indicates strong predictive capability
+## Technical Architecture
+- **Language**: Scala 2.12.15
+- **ML Framework**: Apache Spark MLlib 3.3.0
+- **Java Version**: Java 17 (with comprehensive module opens)
+- **Build Tool**: sbt
+- **Data Format**: CSV with explicit schema
+- **Evaluation Metrics**: AUC-ROC, Accuracy
 
-**Sample Model Performance**:
-- High confidence in "No Attrition" predictions (95-99% accuracy)
-- Good performance on "Yes Attrition" cases (mixed but reasonable)
-- 292 test samples evaluated successfully
-
-**Technical Achievements**:
-✅ Java 17 + Spark 3.3.0 full compatibility
-✅ Complete ML pipeline execution without errors
-✅ Proper LBFGS optimization convergence
-✅ Successful model evaluation and metrics calculation
-
-## Phase 4: Next Steps ��
-
-### Model Improvements (Ready to implement)
-1. **RandomForest Classifier**: Often better for this type of data
-2. **GBTClassifier**: May capture more complex patterns  
-3. **Hyperparameter Tuning**: CrossValidator with ParamGridBuilder
-4. **Feature Engineering**: 
-   - Feature importance analysis
-   - Interaction features
-   - Derived metrics (tenure ratios, satisfaction indices)
-
-### Model Comparison Framework
-- Implement multiple algorithms with same preprocessing
-- Compare AUC, Precision, Recall, F1-score
-- Statistical significance testing
-- Feature importance comparison
-
-### Advanced Analytics
-- Confusion matrix analysis
-- ROC curve visualization  
-- Feature correlation analysis
-- Business impact quantification (cost of false positives/negatives)
-
-## Technical Notes
-- **Environment**: macOS 24.1.0, Java 17.0.15, sbt 1.11.2
-- **Performance**: ~9 seconds total execution time
-- **Memory**: 2.2 GiB Spark local mode
-- **Data Split**: 1,176 training + 294 test samples
-- **Convergence**: LBFGS converged successfully (rel: 1.67e-08)
-
-## Lessons Learned
-1. **Java 17 Module System**: Requires explicit opens for reflection-heavy frameworks
-2. **Spark Compatibility**: Some internal components still use Kryo despite JavaSerializer config  
-3. **Progressive Debugging**: Each error revealed the next required module access
-4. **Pipeline Design**: Explicit schema definition crucial for production reliability
-
-**Status**: ✅ FULLY OPERATIONAL - Ready for advanced model experimentation
+## Project Status: ✅ **PHASE 4 COMPLETE**
+- **Current Achievement**: Successful 3-algorithm comparison
+- **Best Model**: LogisticRegression (83.32% AUC, 87.33% Accuracy)
+- **Next Step**: Ready for Phase 5 enhancements or final academic presentation
