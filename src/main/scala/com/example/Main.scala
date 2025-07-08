@@ -2,6 +2,9 @@ package com.example
 
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.types._
+import org.apache.spark.ml.Pipeline
+import org.apache.spark.ml.feature.{StringIndexer, OneHotEncoder, VectorAssembler}
+import org.apache.spark.ml.classification.LogisticRegression
 
 object Main {
   def main(args: Array[String]): Unit = {
@@ -61,11 +64,54 @@ object Main {
     // Drop columns that are not useful for prediction
     val cleanedDf = df.drop("EmployeeCount", "StandardHours", "Over18", "EmployeeNumber")
 
-    // Show a sample of the data to verify it's loaded correctly
-    println("Successfully loaded data. Schema after dropping irrelevant columns:")
-    cleanedDf.printSchema()
-    println("Data sample:")
-    cleanedDf.show(5, truncate = false)
+    // Identify categorical and numerical columns for feature processing
+    val categoricalCols = Array("BusinessTravel", "Department", "EducationField", "Gender", "JobRole", "MaritalStatus", "OverTime")
+    // Note: We keep original integer columns as is, as they are already numerical.
+    val numericalCols = cleanedDf.columns.filterNot(c => categoricalCols.contains(c) || c == "Attrition")
+
+    // --- Define the ML Pipeline Stages ---
+
+    // Stage 1: Indexers for all categorical columns
+    val indexers = categoricalCols.map { colName =>
+      new StringIndexer().setInputCol(colName).setOutputCol(colName + "_index").setHandleInvalid("keep")
+    }
+
+    // Stage 2: Encoders for all indexed categorical columns
+    val encoders = categoricalCols.map { colName =>
+      new OneHotEncoder().setInputCol(colName + "_index").setOutputCol(colName + "_vec")
+    }
+
+    // Stage 3: Indexer for the label column
+    val labelIndexer = new StringIndexer().setInputCol("Attrition").setOutputCol("label")
+
+    // Stage 4: Assembler to combine all feature columns into a single vector
+    val assemblerInputs = numericalCols ++ categoricalCols.map(_ + "_vec")
+    val assembler = new VectorAssembler()
+      .setInputCols(assemblerInputs)
+      .setOutputCol("features")
+
+    // Stage 5: The classification model
+    val lr = new LogisticRegression().setLabelCol("label").setFeaturesCol("features")
+
+    // --- Train and Evaluate the Model ---
+
+    // Split the data into training and test sets
+    val Array(trainingData, testData) = cleanedDf.randomSplit(Array(0.8, 0.2), seed = 1234L)
+
+    // Create the full pipeline
+    val pipeline = new Pipeline().setStages(indexers ++ encoders ++ Array(labelIndexer, assembler, lr))
+
+    // Train the model
+    println("Training the Logistic Regression model...")
+    val model = pipeline.fit(trainingData)
+
+    // Make predictions on the test data
+    println("Making predictions on the test data...")
+    val predictions = model.transform(testData)
+
+    // Show a sample of the predictions
+    println("Sample predictions:")
+    predictions.select("label", "prediction", "probability").show(10, truncate = false)
 
     spark.stop()
   }
