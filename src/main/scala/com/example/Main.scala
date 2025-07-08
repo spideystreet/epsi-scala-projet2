@@ -5,12 +5,17 @@ import org.apache.spark.sql.types._
 import org.apache.spark.ml.Pipeline
 import org.apache.spark.ml.feature.{StringIndexer, OneHotEncoder, VectorAssembler}
 import org.apache.spark.ml.classification.LogisticRegression
+import org.apache.spark.ml.evaluation.BinaryClassificationEvaluator
 
 object Main {
   def main(args: Array[String]): Unit = {
     val spark = SparkSession.builder
       .appName("Employee Attrition Prediction")
       .master("local[*]") // Use all available cores on the local machine
+      .config("spark.serializer", "org.apache.spark.serializer.JavaSerializer") // Use Java serialization instead of Kryo for Java 17 compatibility
+      .config("spark.sql.adaptive.enabled", "false") // Disable adaptive query execution to avoid Kryo issues
+      .config("spark.sql.adaptive.coalescePartitions.enabled", "false") // Disable partition coalescing
+      .config("spark.sql.adaptive.skewJoin.enabled", "false") // Disable skew join optimization
       .getOrCreate()
 
     println("Spark session created successfully.")
@@ -112,6 +117,15 @@ object Main {
     // Show a sample of the predictions
     println("Sample predictions:")
     predictions.select("label", "prediction", "probability").show(10, truncate = false)
+
+    // --- Evaluate the Model ---
+    val evaluator = new BinaryClassificationEvaluator()
+      .setLabelCol("label")
+      .setRawPredictionCol("rawPrediction") // default is rawPrediction
+      .setMetricName("areaUnderROC")
+
+    val auc = evaluator.evaluate(predictions)
+    println(s"Area Under ROC Curve (AUC) on test data = $auc")
 
     spark.stop()
   }
