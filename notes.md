@@ -3,6 +3,36 @@
 ## Project Overview
 Academic Scala ML project for EPSI Grenoble (2025) using Spark MLlib to predict employee attrition.
 
+### About Our Dataset: The HR Employee Attrition Challenge
+
+For this project, we're working with the **IBM HR Analytics Employee Attrition dataset** - and let me tell you why this is such a perfect choice for our machine learning journey.
+
+**What we're dealing with**: We have data from 1,470 real employees, and our goal is to predict whether someone will leave the company or stay. It's a classic binary classification problem - will they quit (Yes) or will they stay (No)?
+
+**The richness of our data**: What makes this dataset so interesting is that we have 35 different features that paint a complete picture of each employee. Think about it - we know everything from their age and gender, to how satisfied they are with their job, how much they earn, how many years they've been with the company, and even how far they live from work. We've got demographic info, job details, compensation data, performance metrics, and work-life balance indicators.
+
+**Why did we choose this dataset?** Well, first off, employee attrition is a real business problem that costs companies millions. When someone quits, you lose their knowledge, you have to recruit and train someone new - it's expensive! So solving this with machine learning has genuine business value.
+
+From a technical standpoint, it's perfect for learning because it has just the right amount of complexity - 35 features is enough to be interesting without being overwhelming. Plus, we get to work with both numerical data (like salary and age) and categorical data (like department and job role), which is exactly what you'll encounter in real-world projects.
+
+### How We Measure Success: Understanding AUC and Accuracy
+
+Now, here's something crucial - how do we actually know if our model is any good? This is where our evaluation metrics come in, and I want to explain why we use two different ones.
+
+**Let's start with Accuracy** - this one's pretty intuitive. It's simply asking: "Out of all the predictions we made, how many did we get right?" So if we predict 100 employees and get 85 correct, that's 85% accuracy. Easy to understand, easy to explain to your boss!
+
+**But here's where it gets interesting - AUC-ROC**. This stands for "Area Under the Curve - Receiver Operating Characteristic," and I know that sounds intimidating, but stick with me. 
+
+Think of it this way: imagine you're a hiring manager, and you need to rank all employees by their likelihood to quit. AUC measures how good your model is at this ranking task. If someone with a high "quit probability" actually does quit, and someone with a low "quit probability" stays, your model is doing great!
+
+**The beauty of AUC** is that it doesn't care about where you draw the line. Whether you say "anyone above 70% probability will quit" or "anyone above 50% will quit," AUC measures how well your model separates the "will quit" from the "will stay" groups across all possible thresholds.
+
+**Here's the scale**: 0.5 means your model is basically flipping a coin (random guessing). 0.7-0.8 is decent, 0.8-0.9 is excellent, and above 0.9 is outstanding. Our champion model hit 83.74% AUC - that's solidly in the excellent range!
+
+**Why use both metrics?** Well, they tell different stories. AUC tells us how good our model is at ranking and discrimination - perfect for when we're tuning hyperparameters and want the most robust measure. Accuracy tells us the bottom line - what percentage we get right - which is what business stakeholders care about.
+
+Together, they give us confidence that our model isn't just getting lucky on one metric, but is genuinely performing well across different ways of measuring success.
+
 ## Phase 1: Project Setup ✅
 - ✅ Created standard Scala project structure: `src/main/scala/com/example/`
 - ✅ Built `build.sbt` with Scala 2.12.15 and Spark 3.3.0 dependencies
